@@ -1,240 +1,310 @@
-// Link Combiner - Professional Chrome Extension Logic
+/**
+ * Link Combiner Pro
+ * Logic for URL + Username combination, Domain persistence & removal,
+ * File/Folder handling, Themes and Clipboard operations.
+ */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Theme Toggle Elements
+  // --- DOM Elements ---
+  // Theme & Window
   const themeToggleBtn = document.getElementById('themeToggleBtn');
   const themeLabel = document.getElementById('themeLabel');
-  const themeIcon = themeToggleBtn.querySelector('.theme-icon');
+  const openTabBtn = document.getElementById('openTabBtn');
 
-  // Elements - Step 1
+  // Step 1: Base URL & Domain persistence
   const baseUrlInput = document.getElementById('baseUrlInput');
   const clearBaseBtn = document.getElementById('clearBaseBtn');
   const pasteBaseBtn = document.getElementById('pasteBaseBtn');
-  const openTabBtn = document.getElementById('openTabBtn');
+  const saveBaseManualBtn = document.getElementById('saveBaseManualBtn');
+  const domainSavedBadge = document.getElementById('domainSavedBadge');
+  const saveStatusText = document.getElementById('saveStatusText');
+  const savedDomainsContainer = document.getElementById('savedDomainsContainer');
+  const savedDomainsChips = document.getElementById('savedDomainsChips');
 
-  // Elements - Step 2 (Tabs & Modes)
+  // Step 2: Usernames Mode & Inputs
   const tabTextBtn = document.getElementById('tabTextBtn');
   const tabFileBtn = document.getElementById('tabFileBtn');
   const textModeContainer = document.getElementById('textModeContainer');
   const fileModeContainer = document.getElementById('fileModeContainer');
-
-  // Elements - Text Mode
   const usernamesInput = document.getElementById('usernamesInput');
   const inputCountBadge = document.getElementById('inputCountBadge');
   const pasteUsernamesBtn = document.getElementById('pasteUsernamesBtn');
   const clearUsernamesBtn = document.getElementById('clearUsernamesBtn');
 
-  // Elements - File Mode
+  // Step 2: File Uploads
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
   const folderInput = document.getElementById('folderInput');
   const selectFilesBtn = document.getElementById('selectFilesBtn');
   const selectFolderBtn = document.getElementById('selectFolderBtn');
-
   const fileLoadedCard = document.getElementById('fileLoadedCard');
   const loadedFileName = document.getElementById('loadedFileName');
   const loadedFileDetails = document.getElementById('loadedFileDetails');
   const removeFileBtn = document.getElementById('removeFileBtn');
 
-  // Elements - Live Preview
+  // Preview & Actions
   const livePreviewText = document.getElementById('livePreviewText');
-
-  // Elements - Actions
   const generateBtn = document.getElementById('generateBtn');
   const resetAllBtn = document.getElementById('resetAllBtn');
 
-  // Elements - Results
+  // Step 3: Results
   const resultsSection = document.getElementById('resultsSection');
   const resultsCountBadge = document.getElementById('resultsCountBadge');
   const viewListBtn = document.getElementById('viewListBtn');
   const viewTextBtn = document.getElementById('viewTextBtn');
+  const copyAllBtn = document.getElementById('copyAllBtn');
+  const downloadTxtBtn = document.getElementById('downloadTxtBtn');
+  const openTabsBtn = document.getElementById('openTabsBtn');
   const resultListView = document.getElementById('resultListView');
   const resultTextView = document.getElementById('resultTextView');
   const resultRawText = document.getElementById('resultRawText');
 
-  const copyAllBtn = document.getElementById('copyAllBtn');
-  const downloadTxtBtn = document.getElementById('downloadTxtBtn');
-  const openTabsBtn = document.getElementById('openTabsBtn');
+  // Toast
   const toast = document.getElementById('toast');
 
-  // App State
-  let fileExtractedItems = [];
-  let currentGeneratedUrls = [];
-  let activeInputMode = 'text'; // 'text' | 'file'
-  let currentTheme = 'dark';
+  // State
+  let currentMode = 'text'; // 'text' or 'file'
+  let uploadedUsernames = [];
+  let generatedLinks = [];
+  let toastTimeout = null;
 
-  // Default example given by user
-  const DEFAULT_EXAMPLE_BASE = '';
-  const DEFAULT_EXAMPLE_USERNAMES = '';
-
-  // Check if opened in full browser tab or popup
-  function updateLayoutMode() {
-    if (window.innerWidth > 540) {
-      openTabBtn.style.display = 'none';
-    } else {
-      openTabBtn.style.display = 'flex';
+  // --- STORAGE WRAPPER (Works in Chrome Extension & Browser) ---
+  const Storage = {
+    async get(key, defaultValue = null) {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        return new Promise((resolve) => {
+          chrome.storage.local.get([key], (result) => {
+            resolve(result[key] !== undefined ? result[key] : defaultValue);
+          });
+        });
+      } else {
+        const val = localStorage.getItem(key);
+        if (val === null) return defaultValue;
+        try {
+          return JSON.parse(val);
+        } catch {
+          return val;
+        }
+      }
+    },
+    async set(key, value) {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        return new Promise((resolve) => {
+          chrome.storage.local.set({ [key]: value }, resolve);
+        });
+      } else {
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    },
+    async remove(key) {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        return new Promise((resolve) => {
+          chrome.storage.local.remove([key], resolve);
+        });
+      } else {
+        localStorage.removeItem(key);
+      }
     }
-  }
-  updateLayoutMode();
-  window.addEventListener('resize', updateLayoutMode);
+  };
 
-  // Toast Helper
-  let toastTimer = null;
-  function showToast(message, duration = 2400) {
-    if (toastTimer) clearTimeout(toastTimer);
+  // --- TOAST NOTIFICATION ---
+  function showToast(message, duration = 2800) {
+    if (toastTimeout) clearTimeout(toastTimeout);
     toast.textContent = message;
     toast.classList.add('show');
-    toastTimer = setTimeout(() => {
+    toastTimeout = setTimeout(() => {
       toast.classList.remove('show');
     }, duration);
   }
 
-  // -------------------------------------------------------------
-  // THEME MANAGEMENT (Dark Mode & White/Light Mode)
-  // -------------------------------------------------------------
+  // --- THEME MANAGEMENT ---
+  async function initTheme() {
+    const savedTheme = await Storage.get('app_theme', 'dark');
+    applyTheme(savedTheme);
+  }
+
   function applyTheme(theme) {
-    currentTheme = theme;
     document.documentElement.setAttribute('data-theme', theme);
     if (theme === 'light') {
-      themeIcon.textContent = '🌙';
+      themeToggleBtn.querySelector('.theme-icon').textContent = '🌙';
       themeLabel.textContent = 'ডার্ক মোড';
     } else {
-      themeIcon.textContent = '☀️';
+      themeToggleBtn.querySelector('.theme-icon').textContent = '☀️';
       themeLabel.textContent = 'সাদা মোড';
     }
+    Storage.set('app_theme', theme);
   }
 
-  function toggleTheme() {
-    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    applyTheme(nextTheme);
+  themeToggleBtn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+  });
 
-    // Save preference
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ appTheme: nextTheme });
+  // Open in Full Tab
+  if (openTabBtn) {
+    openTabBtn.addEventListener('click', () => {
+      if (typeof chrome !== 'undefined' && chrome.tabs && chrome.runtime && chrome.runtime.getURL) {
+        chrome.tabs.create({ url: chrome.runtime.getURL('popup.html') });
+      } else {
+        window.open(window.location.href, '_blank');
+      }
+    });
+  }
+
+  // --- STEP 1: DOMAIN / BASE URL PERSISTENCE & CLEAR LOGIC ---
+  async function initBaseUrl() {
+    const savedUrl = await Storage.get('saved_base_url', '');
+    if (savedUrl) {
+      baseUrlInput.value = savedUrl;
+      updateDomainBadge(true);
     } else {
-      localStorage.setItem('combiner_theme', nextTheme);
+      updateDomainBadge(false);
     }
-
-    showToast(nextTheme === 'light' ? '☀️ সাদা মোড চালু হয়েছে' : '🌙 ডার্ক মোড চালু হয়েছে');
-  }
-
-  themeToggleBtn.addEventListener('click', toggleTheme);
-
-  // -------------------------------------------------------------
-  // LIVE PREVIEW & COUNTER
-  // -------------------------------------------------------------
-  function updateLivePreview() {
-    const base = baseUrlInput.value.trim() || 'https://example.com/?id=';
-    let sampleId = '';
-
-    if (activeInputMode === 'file' && fileExtractedItems.length > 0) {
-      sampleId = fileExtractedItems[0];
-    } else {
-      const lines = usernamesInput.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      sampleId = lines.length > 0 ? lines[0] : 'xxx-workout-xx-new-videos-ygk111ddq-vxc-1';
-    }
-
-    const previewUrl = base + sampleId;
-    livePreviewText.textContent = previewUrl;
-  }
-
-  function updateCountBadge() {
-    const lines = usernamesInput.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    inputCountBadge.textContent = `${lines.length} Username${lines.length === 1 ? '' : 's'}`;
+    renderSavedDomainChips();
     updateLivePreview();
   }
 
-  // -------------------------------------------------------------
-  // STORAGE & INITIAL STATE
-  // -------------------------------------------------------------
-  function loadSavedData() {
-    const hasChromeStorage = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
-    if (hasChromeStorage) {
-      chrome.storage.local.get(['savedBaseUrl', 'appTheme'], (res) => {
-        if (res.appTheme) {
-          applyTheme(res.appTheme);
-        } else {
-          applyTheme('dark');
-        }
-
-        if (res.savedBaseUrl) {
-          baseUrlInput.value = res.savedBaseUrl;
-        } else {
-          baseUrlInput.value = DEFAULT_EXAMPLE_BASE;
-        }
-        updateCountBadge();
-      });
+  function updateDomainBadge(isSaved) {
+    if (isSaved && baseUrlInput.value.trim().length > 0) {
+      domainSavedBadge.className = 'save-status-badge saved';
+      saveStatusText.textContent = 'মেমোরিতে সংরক্ষিত আছে';
+      domainSavedBadge.title = 'এই ডোমেনটি সেভ করা আছে, পৃষ্ঠা রিলোড দিলেও থাকবে';
     } else {
-      const savedTheme = localStorage.getItem('combiner_theme') || 'dark';
-      applyTheme(savedTheme);
-
-      const saved = localStorage.getItem('combiner_base_url');
-      baseUrlInput.value = saved || DEFAULT_EXAMPLE_BASE;
-      updateCountBadge();
-    }
-
-    // Set initial sample usernames if empty
-    if (!usernamesInput.value.trim()) {
-      usernamesInput.value = DEFAULT_EXAMPLE_USERNAMES;
-      updateCountBadge();
+      domainSavedBadge.className = 'save-status-badge empty';
+      saveStatusText.textContent = 'কোন ডোমেন সংরক্ষিত নেই';
+      domainSavedBadge.title = 'URL লিখলে স্বয়ংক্রিয়ভাবে সেভ হবে';
     }
   }
 
-  function saveBaseUrl(val) {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ savedBaseUrl: val });
-    } else {
-      localStorage.setItem('combiner_base_url', val);
-    }
-  }
-
-  // -------------------------------------------------------------
-  // STEP 1 EVENTS
-  // -------------------------------------------------------------
+  let saveBaseTimeout = null;
   baseUrlInput.addEventListener('input', () => {
-    saveBaseUrl(baseUrlInput.value);
+    const val = baseUrlInput.value.trim();
     updateLivePreview();
+
+    if (saveBaseTimeout) clearTimeout(saveBaseTimeout);
+    saveBaseTimeout = setTimeout(async () => {
+      if (val) {
+        await Storage.set('saved_base_url', val);
+        updateDomainBadge(true);
+        addDomainToHistory(val);
+      } else {
+        await Storage.remove('saved_base_url');
+        updateDomainBadge(false);
+      }
+    }, 400);
   });
 
-  clearBaseBtn.addEventListener('click', () => {
+  // Clear / Remove Domain button
+  clearBaseBtn.addEventListener('click', async () => {
     baseUrlInput.value = '';
-    saveBaseUrl('');
+    await Storage.remove('saved_base_url');
+    updateDomainBadge(false);
     updateLivePreview();
-    baseUrlInput.focus();
+    showToast('🗑️ ডোমেন মুছে ফেলা হয়েছে এবং মেমোরি থেকে সরানো হয়েছে!');
   });
 
+  // Paste Base URL
   pasteBaseBtn.addEventListener('click', async () => {
     try {
-      const clipText = await navigator.clipboard.readText();
-      if (clipText) {
-        baseUrlInput.value = clipText.trim();
-        saveBaseUrl(baseUrlInput.value);
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        baseUrlInput.value = text.trim();
+        await Storage.set('saved_base_url', text.trim());
+        updateDomainBadge(true);
+        addDomainToHistory(text.trim());
         updateLivePreview();
-        showToast('Main URL পেস্ট করা হয়েছে');
+        showToast('📋 URL পেস্ট এবং সেভ হয়েছে!');
+      } else {
+        showToast('ক্লিপবোর্ডে কোন লেখা নেই');
       }
-    } catch {
-      showToast('Clipboard access denied');
+    } catch (err) {
+      baseUrlInput.focus();
+      showToast('পেস্ট করতে কন্ট্রোল+ভি (Ctrl+V) চাপুন');
     }
   });
 
-  // Open In Full Tab
-  openTabBtn.addEventListener('click', () => {
-    const standaloneUrl = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL)
-      ? chrome.runtime.getURL('popup.html?mode=standalone')
-      : 'popup.html?mode=standalone';
+  // Save Domain explicitly
+  if (saveBaseManualBtn) {
+    saveBaseManualBtn.addEventListener('click', async () => {
+      const val = baseUrlInput.value.trim();
+      if (!val) {
+        showToast('⚠️ অনুগ্রহ করে প্রথমে একটি URL লিখুন');
+        return;
+      }
+      await Storage.set('saved_base_url', val);
+      await addDomainToHistory(val);
+      updateDomainBadge(true);
+      showToast('💾 ডোমেন সফলভাবে সংরক্ষিত হয়েছে!');
+    });
+  }
 
-    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
-      chrome.tabs.create({ url: standaloneUrl });
-    } else {
-      window.open(standaloneUrl, '_blank');
+  // Saved Domains History Chips
+  async function addDomainToHistory(url) {
+    if (!url) return;
+    let list = await Storage.get('saved_domains_history', []);
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(item => item !== url);
+    list.unshift(url);
+    if (list.length > 5) list = list.slice(0, 5); // Keep top 5
+    await Storage.set('saved_domains_history', list);
+    renderSavedDomainChips();
+  }
+
+  async function renderSavedDomainChips() {
+    const list = await Storage.get('saved_domains_history', []);
+    if (!Array.isArray(list) || list.length === 0) {
+      savedDomainsContainer.style.display = 'none';
+      savedDomainsChips.innerHTML = '';
+      return;
     }
-  });
+    savedDomainsContainer.style.display = 'block';
+    savedDomainsChips.innerHTML = '';
 
-  // -------------------------------------------------------------
-  // STEP 2 TABS (Box vs File)
-  // -------------------------------------------------------------
+    list.forEach(item => {
+      const chip = document.createElement('div');
+      chip.className = 'domain-chip-item';
+      
+      const label = document.createElement('span');
+      label.textContent = item.length > 35 ? item.substring(0, 32) + '...' : item;
+      label.title = item;
+      label.onclick = () => {
+        baseUrlInput.value = item;
+        Storage.set('saved_base_url', item);
+        updateDomainBadge(true);
+        updateLivePreview();
+        showToast('🔄 ডোমেন সিলেক্ট করা হয়েছে!');
+      };
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove-tag-btn';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.title = 'তালিকা থেকে রিমুভ করুন';
+      removeBtn.onclick = async (e) => {
+        e.stopPropagation();
+        let currentList = await Storage.get('saved_domains_history', []);
+        currentList = currentList.filter(x => x !== item);
+        await Storage.set('saved_domains_history', currentList);
+        // If current active is the one deleted, clear it if matches
+        if (baseUrlInput.value.trim() === item) {
+          baseUrlInput.value = '';
+          await Storage.remove('saved_base_url');
+          updateDomainBadge(false);
+          updateLivePreview();
+        }
+        renderSavedDomainChips();
+        showToast('রিমুভ করা হয়েছে');
+      };
+
+      chip.appendChild(label);
+      chip.appendChild(removeBtn);
+      savedDomainsChips.appendChild(chip);
+    });
+  }
+
+  // --- STEP 2: MODE TOGGLE (TEXT BOX VS FILE UPLOAD) ---
   tabTextBtn.addEventListener('click', () => {
-    activeInputMode = 'text';
+    currentMode = 'text';
     tabTextBtn.classList.add('active');
     tabFileBtn.classList.remove('active');
     textModeContainer.classList.add('active');
@@ -243,7 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   tabFileBtn.addEventListener('click', () => {
-    activeInputMode = 'file';
+    currentMode = 'file';
     tabFileBtn.classList.add('active');
     tabTextBtn.classList.remove('active');
     fileModeContainer.classList.add('active');
@@ -251,42 +321,48 @@ document.addEventListener('DOMContentLoaded', () => {
     updateLivePreview();
   });
 
-  // Text Mode Input Events
-  usernamesInput.addEventListener('input', updateCountBadge);
+  // Text mode username count
+  function getUsernamesFromText() {
+    return usernamesInput.value
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+  }
 
-  clearUsernamesBtn.addEventListener('click', () => {
-    usernamesInput.value = '';
-    updateCountBadge();
-    usernamesInput.focus();
+  usernamesInput.addEventListener('input', () => {
+    const count = getUsernamesFromText().length;
+    inputCountBadge.textContent = `${count} Username${count === 1 ? '' : 's'}`;
+    updateLivePreview();
   });
 
   pasteUsernamesBtn.addEventListener('click', async () => {
     try {
-      const clipText = await navigator.clipboard.readText();
-      if (clipText) {
+      const text = await navigator.clipboard.readText();
+      if (text) {
         if (usernamesInput.value.trim()) {
-          usernamesInput.value += '\n' + clipText;
+          usernamesInput.value += '\n' + text.trim();
         } else {
-          usernamesInput.value = clipText;
+          usernamesInput.value = text.trim();
         }
-        updateCountBadge();
-        showToast('Clipboard থেকে পেস্ট করা হয়েছে');
+        const count = getUsernamesFromText().length;
+        inputCountBadge.textContent = `${count} Username${count === 1 ? '' : 's'}`;
+        updateLivePreview();
+        showToast('📋 Usernames পেস্ট হয়েছে!');
       }
     } catch {
-      showToast('Clipboard access denied');
+      usernamesInput.focus();
+      showToast('পেস্ট করতে Ctrl+V চাপুন');
     }
   });
 
-  // -------------------------------------------------------------
-  // FILE & FOLDER UPLOAD HANDLING (.html, .txt, etc.)
-  // -------------------------------------------------------------
-  dropZone.addEventListener('click', (e) => {
-    // Only trigger if not clicked on inner specific buttons
-    if (e.target !== selectFolderBtn && !selectFolderBtn.contains(e.target)) {
-      fileInput.click();
-    }
+  clearUsernamesBtn.addEventListener('click', () => {
+    usernamesInput.value = '';
+    inputCountBadge.textContent = '0 Usernames';
+    updateLivePreview();
+    showToast('Usernames বক্স ক্লিয়ার হয়েছে');
   });
 
+  // --- FILE & FOLDER UPLOAD HANDLING ---
   selectFilesBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     fileInput.click();
@@ -297,195 +373,251 @@ document.addEventListener('DOMContentLoaded', () => {
     folderInput.click();
   });
 
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      processSelectedFiles(Array.from(e.target.files));
-    }
+  dropZone.addEventListener('click', () => {
+    fileInput.click();
   });
 
-  folderInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      processSelectedFiles(Array.from(e.target.files));
-    }
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('drag-over');
+    });
   });
 
-  // Drag & drop
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+    });
   });
-
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 
   dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processSelectedFiles(Array.from(e.dataTransfer.files));
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      processFiles(files);
     }
   });
 
-  // Process uploaded files (HTML filenames or text contents)
-  async function processSelectedFiles(files) {
-    if (!files || files.length === 0) return;
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files && fileInput.files.length > 0) {
+      processFiles(fileInput.files);
+    }
+  });
 
-    let usernamesFound = [];
-    let htmlFileCount = 0;
-    let txtFileCount = 0;
+  folderInput.addEventListener('change', () => {
+    if (folderInput.files && folderInput.files.length > 0) {
+      processFiles(folderInput.files);
+    }
+  });
+
+  async function processFiles(fileList) {
+    uploadedUsernames = [];
+    const files = Array.from(fileList);
+    let htmlPdfCount = 0;
+    let txtCount = 0;
 
     for (const file of files) {
       const fileName = file.name;
+      const lower = fileName.toLowerCase();
 
-      // 1. If HTML/PDF file: Extract username directly from the filename!
-      // Example: "xxx-workout-xx-new-videos-ygk111ddq-vxc-1.html" -> "xxx-workout-xx-new-videos-ygk111ddq-vxc-1"
-      if (/\.(html?|pdf)$/i.test(fileName)) {
-        const username = fileName.replace(/\.(html?|pdf)$/i, '').trim();
-        if (username) {
-          usernamesFound.push(username);
-          htmlFileCount++;
+      // Rule: For .html, .htm, .pdf: take username directly from file name without extension!
+      if (lower.endsWith('.html') || lower.endsWith('.htm') || lower.endsWith('.pdf')) {
+        const usernameFromName = fileName.replace(/\.(html|htm|pdf)$/i, '').trim();
+        if (usernameFromName) {
+          uploadedUsernames.push(usernameFromName);
+          htmlPdfCount++;
         }
       }
-      // 2. If Text/CSV file: Read file contents and extract lines
-      else if (/\.(txt|csv|log)$/i.test(fileName)) {
+      // Rule: For .txt, .csv, .log: read text content line-by-line
+      else if (lower.endsWith('.txt') || lower.endsWith('.csv') || lower.endsWith('.log')) {
         try {
           const content = await file.text();
-          const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-          usernamesFound.push(...lines);
-          txtFileCount++;
+          const lines = content.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+          uploadedUsernames.push(...lines);
+          txtCount++;
         } catch (err) {
           console.error('Error reading text file:', err);
         }
-      }
-      // 3. Fallback: Take filename without extension
-      else {
-        const baseName = fileName.replace(/\.[^/.]+$/, '').trim();
-        if (baseName) {
-          usernamesFound.push(baseName);
+      } else {
+        // Fallback: If unknown extension, take filename without last extension
+        const usernameFromName = fileName.replace(/\.[^/.]+$/, '').trim();
+        if (usernameFromName) {
+          uploadedUsernames.push(usernameFromName);
         }
       }
     }
 
-    if (usernamesFound.length === 0) {
-      showToast('⚠️ ফাইলে কোনো ইউজারনেম পাওয়া যায়নি');
+    // Deduplicate while preserving order
+    uploadedUsernames = Array.from(new Set(uploadedUsernames));
+
+    if (uploadedUsernames.length === 0) {
+      showToast('⚠️ কোন Username বা বৈধ ফাইল পাওয়া যায়নি');
       return;
     }
 
-    // Remove duplicates
-    usernamesFound = Array.from(new Set(usernamesFound));
-    fileExtractedItems = usernamesFound;
-
-    // Sync into textarea
-    usernamesInput.value = fileExtractedItems.join('\n');
-    updateCountBadge();
-
-    // Show card info
-    if (files.length === 1) {
-      loadedFileName.textContent = files[0].name;
-    } else {
-      loadedFileName.textContent = `${files.length} টি ফাইল আপলোড হয়েছে`;
-    }
-
-    loadedFileDetails.textContent = `মোট ${usernamesFound.length} টি ইউজারনেম পাওয়া গেছে (${htmlFileCount > 0 ? htmlFileCount + 'টি HTML/PDF' : ''})`;
-    dropZone.style.display = 'none';
+    // Display File loaded card
     fileLoadedCard.style.display = 'flex';
+    loadedFileName.textContent = files.length === 1 ? files[0].name : `${files.length}টি ফাইল / ফোল্ডার লোড হয়েছে`;
+    loadedFileDetails.textContent = `মোট ${uploadedUsernames.length} টি ইউজারনেম পাওয়া গেছে (${htmlPdfCount} HTML/PDF, ${txtCount} TXT)`;
     
-    showToast(`✅ ${usernamesFound.length} টি ইউজারনেম পাওয়া গেছে!`);
     updateLivePreview();
+    showToast(`✅ ${uploadedUsernames.length} টি Username সফলভাবে লোড হয়েছে!`);
   }
 
   removeFileBtn.addEventListener('click', () => {
-    fileExtractedItems = [];
+    uploadedUsernames = [];
     fileInput.value = '';
     folderInput.value = '';
-    dropZone.style.display = 'block';
     fileLoadedCard.style.display = 'none';
     updateLivePreview();
-    showToast('ফাইল সরানো হয়েছে');
+    showToast('আপলোড করা ফাইল মুছে ফেলা হয়েছে');
   });
 
-  // -------------------------------------------------------------
-  // GENERATE LINKS BUTTON
-  // -------------------------------------------------------------
+  // --- LIVE PREVIEW ---
+  function getActiveUsernames() {
+    if (currentMode === 'file') {
+      return uploadedUsernames;
+    }
+    return getUsernamesFromText();
+  }
+
+  function combineUrlAndUsername(base, user) {
+    if (!base) base = 'https://example.com/user/';
+    if (!user) user = 'john_doe';
+
+    base = base.trim();
+    user = user.trim();
+
+    // Check if placeholder {id} or {username} exists
+    if (base.includes('{id}')) {
+      return base.replace('{id}', encodeURIComponent(user));
+    }
+    if (base.includes('{username}')) {
+      return base.replace('{username}', encodeURIComponent(user));
+    }
+
+    // Check if query parameter with trailing = or &
+    if (base.endsWith('=') || base.endsWith('&') || base.endsWith('?')) {
+      return base + encodeURIComponent(user);
+    }
+
+    // Standard URL joining: ensure single slash between base and username
+    if (base.endsWith('/')) {
+      return base + user;
+    } else {
+      return base + '/' + user;
+    }
+  }
+
+  function updateLivePreview() {
+    const rawBase = baseUrlInput.value.trim();
+    const activeList = getActiveUsernames();
+    const firstUser = activeList.length > 0 ? activeList[0] : null;
+
+    if (!rawBase && !firstUser) {
+      livePreviewText.textContent = 'Main URL + Username = আপনার ফাইনাল লিংক (যেমন: https://example.com/user/john_doe)';
+      return;
+    }
+
+    const preview = combineUrlAndUsername(rawBase || 'https://example.com/user/', firstUser || 'example_username');
+    livePreviewText.textContent = preview;
+  }
+
+  // --- GENERATE LINKS ---
   generateBtn.addEventListener('click', () => {
-    const baseUrl = baseUrlInput.value.trim();
-    if (!baseUrl) {
-      showToast('⚠️ প্রথমে Main URL দিন');
+    const base = baseUrlInput.value.trim();
+    const users = getActiveUsernames();
+
+    if (!base) {
+      showToast('⚠️ অনুগ্রহ করে Main URL বা Domain দিন!');
       baseUrlInput.focus();
       return;
     }
 
-    let sourceItems = [];
-    if (activeInputMode === 'file' && fileExtractedItems.length > 0) {
-      sourceItems = fileExtractedItems;
-    } else {
-      sourceItems = usernamesInput.value.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    }
-
-    if (sourceItems.length === 0) {
-      showToast('⚠️ কোনো ইউজারনেম বা আইডি পাওয়া যায়নি');
-      usernamesInput.focus();
+    if (users.length === 0) {
+      if (currentMode === 'text') {
+        showToast('⚠️ অনুগ্রহ করে অন্তত ১টি Username বক্সে লিখুন!');
+        usernamesInput.focus();
+      } else {
+        showToast('⚠️ কোন ফাইল আপলোড করা হয়নি! ফাইল সিলেক্ট করুন।');
+      }
       return;
     }
 
-    // Remove duplicates
-    const uniqueItems = Array.from(new Set(sourceItems));
+    generatedLinks = users.map(u => combineUrlAndUsername(base, u));
 
-    // Combine
-    currentGeneratedUrls = uniqueItems.map(item => {
-      return {
-        id: item,
-        fullUrl: baseUrl + item
-      };
-    });
-
-    renderResults(baseUrl, currentGeneratedUrls);
+    // Show Results
+    renderResults(generatedLinks);
+    resultsSection.style.display = 'flex';
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToast(`🎉 ${generatedLinks.length} টি লিংক সফলভাবে তৈরি হয়েছে!`);
   });
 
-  function renderResults(baseUrl, items) {
-    resultsSection.style.display = 'flex';
-    resultsCountBadge.textContent = `${items.length} Links`;
+  function renderResults(links) {
+    resultsCountBadge.textContent = `${links.length} Links`;
+    resultRawText.value = links.join('\n');
 
-    // Raw Text View
-    const allUrls = items.map(x => x.fullUrl).join('\n');
-    resultRawText.value = allUrls;
-
-    // List View
     resultListView.innerHTML = '';
-    const fragment = document.createDocumentFragment();
-
-    items.forEach((item, index) => {
+    links.forEach((link, idx) => {
       const row = document.createElement('div');
-      row.className = 'link-row-card';
+      row.className = 'link-row-item';
 
-      const content = document.createElement('div');
-      content.className = 'link-text-content';
+      const left = document.createElement('div');
+      left.className = 'link-row-left';
 
-      const shortBase = baseUrl.length > 55 ? baseUrl.slice(0, 52) + '...' : baseUrl;
-      content.innerHTML = `<span class="prefix-part">${escapeHtml(shortBase)}</span><span class="id-part">${escapeHtml(item.id)}</span>`;
+      const indexSpan = document.createElement('span');
+      indexSpan.className = 'link-index';
+      indexSpan.textContent = `#${idx + 1}`;
+
+      const linkA = document.createElement('a');
+      linkA.className = 'link-url-text';
+      linkA.href = link;
+      linkA.target = '_blank';
+      linkA.rel = 'noreferrer noopener';
+      linkA.textContent = link;
+
+      left.appendChild(indexSpan);
+      left.appendChild(linkA);
 
       const actions = document.createElement('div');
-      actions.className = 'link-btn-actions';
+      actions.className = 'link-row-actions';
 
-      // Copy single link button
+      // Copy individual button
       const copyBtn = document.createElement('button');
-      copyBtn.className = 'small-icon-btn';
-      copyBtn.title = 'Copy this link';
+      copyBtn.className = 'mini-icon-btn';
+      copyBtn.title = 'কপি করুন';
       copyBtn.innerHTML = `
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
         </svg>
       `;
-      copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(item.fullUrl).then(() => {
-          showToast(`Link #${index + 1} কপি করা হয়েছে`);
-        });
-      });
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(link);
+        copyBtn.classList.add('copied');
+        copyBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        `;
+        showToast(`লিংক #${idx + 1} কপি হয়েছে!`);
+        setTimeout(() => {
+          copyBtn.classList.remove('copied');
+          copyBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          `;
+        }, 1500);
+      };
 
-      // Open single link in browser tab
+      // Open tab button
       const openBtn = document.createElement('button');
-      openBtn.className = 'small-icon-btn';
-      openBtn.title = 'Open link in new tab';
+      openBtn.className = 'mini-icon-btn';
+      openBtn.title = 'ব্রাউজারে খুলুন';
       openBtn.innerHTML = `
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -493,35 +625,21 @@ document.addEventListener('DOMContentLoaded', () => {
           <line x1="10" y1="14" x2="21" y2="3"></line>
         </svg>
       `;
-      openBtn.addEventListener('click', () => {
-        openUrl(item.fullUrl);
-      });
+      openBtn.onclick = () => {
+        window.open(link, '_blank');
+      };
 
       actions.appendChild(copyBtn);
       actions.appendChild(openBtn);
-      row.appendChild(content);
+
+      row.appendChild(left);
       row.appendChild(actions);
-      fragment.appendChild(row);
+
+      resultListView.appendChild(row);
     });
-
-    resultListView.appendChild(fragment);
-    resultsSection.scrollIntoView({ behavior: 'smooth' });
-    showToast(`✅ ${items.length} টি লিংক তৈরি হয়েছে!`);
   }
 
-  function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function openUrl(url) {
-    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
-      chrome.tabs.create({ url, active: false });
-    } else {
-      window.open(url, '_blank');
-    }
-  }
-
-  // View Switcher (List vs Raw Text)
+  // View switch: List vs Raw Text
   viewListBtn.addEventListener('click', () => {
     viewListBtn.classList.add('active');
     viewTextBtn.classList.remove('active');
@@ -534,71 +652,65 @@ document.addEventListener('DOMContentLoaded', () => {
     viewListBtn.classList.remove('active');
     resultTextView.style.display = 'block';
     resultListView.style.display = 'none';
-    resultRawText.focus();
-    resultRawText.select();
   });
 
-  // Copy All Links
-  copyAllBtn.addEventListener('click', () => {
-    if (currentGeneratedUrls.length === 0) return;
-    const text = currentGeneratedUrls.map(x => x.fullUrl).join('\n');
-    navigator.clipboard.writeText(text).then(() => {
-      showToast(`📋 সব (${currentGeneratedUrls.length}) লিংক কপি করা হয়েছে!`);
-    }).catch(() => {
+  // Copy All
+  copyAllBtn.addEventListener('click', async () => {
+    if (generatedLinks.length === 0) return;
+    try {
+      await navigator.clipboard.writeText(generatedLinks.join('\n'));
+      showToast(`📋 সব ${generatedLinks.length} টি লিংক কপি করা হয়েছে!`);
+    } catch {
       resultRawText.select();
       document.execCommand('copy');
-      showToast('📋 কপি করা হয়েছে!');
-    });
+      showToast('সব লিংক কপি করা হয়েছে!');
+    }
   });
 
   // Download .txt file
   downloadTxtBtn.addEventListener('click', () => {
-    if (currentGeneratedUrls.length === 0) return;
-    const text = currentGeneratedUrls.map(x => x.fullUrl).join('\n');
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    if (generatedLinks.length === 0) return;
+    const blob = new Blob([generatedLinks.join('\n')], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
+    const dateStr = new Date().toISOString().slice(0, 10);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `combined_links.txt`;
+    a.download = `combined_links_${dateStr}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast('💾 links.txt ফাইল ডাউনলোড হয়েছে');
+    showToast('💾 টেক্সট ফাইল ডাউনলোড শুরু হয়েছে');
   });
 
-  // Open All in Browser Tabs
+  // Open multiple tabs
   openTabsBtn.addEventListener('click', () => {
-    if (currentGeneratedUrls.length === 0) return;
-    const count = currentGeneratedUrls.length;
-    if (count > 10) {
-      const confirmOpen = confirm(`আপনি একসাথে ${count} টি ট্যাব খুলতে যাচ্ছেন। ব্রাউজার কিছুটা স্লো হতে পারে। আপনি কি নিশ্চিত?`);
+    if (generatedLinks.length === 0) return;
+    if (generatedLinks.length > 10) {
+      const confirmOpen = confirm(`আপনি একসাথে ${generatedLinks.length} টি ট্যাব খুলতে যাচ্ছেন। ব্রাউজার হ্যাং রোধ করতে প্রথম ১০টি ট্যাব খুলবেন?`);
       if (!confirmOpen) return;
+      generatedLinks.slice(0, 10).forEach(link => window.open(link, '_blank'));
+    } else {
+      generatedLinks.forEach(link => window.open(link, '_blank'));
     }
-    currentGeneratedUrls.forEach(item => {
-      openUrl(item.fullUrl);
-    });
-    showToast(`🌐 ${count} টি ট্যাব খোলা হয়েছে`);
+    showToast('ট্যাবসমূহ খোলা হচ্ছে...');
   });
 
-  // Reset Everything
+  // --- RESET ALL ---
   resetAllBtn.addEventListener('click', () => {
     usernamesInput.value = '';
-    updateCountBadge();
-    removeFileBtn.click();
+    inputCountBadge.textContent = '0 Usernames';
+    uploadedUsernames = [];
+    fileInput.value = '';
+    folderInput.value = '';
+    fileLoadedCard.style.display = 'none';
+    generatedLinks = [];
     resultsSection.style.display = 'none';
-    currentGeneratedUrls = [];
-    showToast('সব খালি করা হয়েছে');
+    updateLivePreview();
+    showToast('🔄 সম্পূর্ণ রিসেট করা হয়েছে');
   });
 
-  // Keyboard shortcut Ctrl + Enter to Generate
-  document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      generateBtn.click();
-    }
-  });
-
-  // Initial call
-  loadSavedData();
+  // Initialize
+  initTheme();
+  initBaseUrl();
 });

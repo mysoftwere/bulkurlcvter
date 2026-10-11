@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="bn" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Link Combiner Pro</title>
   <link rel="stylesheet" href="popup.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
@@ -12,13 +15,13 @@
     <header class="app-header">
       <div class="header-left">
         <div class="app-icon">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
           </svg>
         </div>
         <div>
-          <h1 class="app-title">Link Combiner</h1>
+          <h1 class="app-title">Link Combiner <span class="badge-pro">PRO</span></h1>
           <p class="app-subtitle">Main URL + Username জোড়া লাগানোর টুল</p>
         </div>
       </div>
@@ -33,7 +36,7 @@
 
         <!-- Open in Full Browser Tab -->
         <button id="openTabBtn" class="btn-icon" title="বড় স্ক্রিনে খুলুন (Full Tab)" aria-label="Open in full tab">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
             <polyline points="15 3 21 3 21 9"></polyline>
             <line x1="10" y1="14" x2="21" y2="3"></line>
@@ -51,11 +54,22 @@
           <div class="step-title-group">
             <span class="step-number">1</span>
             <div>
-              <h2 class="step-title">Main URL বা Domain</h2>
+              <div class="title-with-badge">
+                <h2 class="step-title">Main URL বা Domain</h2>
+                <span id="domainSavedBadge" class="save-status-badge saved" title="এই ডোমেনটি মেমোরিতে সেভ আছে">
+                  <span class="status-dot"></span> <span id="saveStatusText">স্বয়ংক্রিয়ভাবে সেভ থাকবে</span>
+                </span>
+              </div>
               <p class="step-desc">যে লিংক বা ডোমেইনের সাথে ইউজারনেম জোড়া লাগাবেন</p>
             </div>
           </div>
-          <button id="clearBaseBtn" class="btn-text-danger" title="মুছে ফেলুন">Clear</button>
+          <button id="clearBaseBtn" class="btn-text-danger" title="ডোমেন মুছে ফেলুন (Clear & Remove from memory)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear / ডিলিট
+          </button>
         </div>
 
         <div class="field-container">
@@ -63,13 +77,28 @@
             id="baseUrlInput" 
             class="text-field code-font" 
             rows="3" 
-            placeholder="Main URL এখানে দিন..."
+            placeholder="Main URL এখানে দিন... (যেমন: https://example.com/user/ বা https://site.com/profile?id=)"
             spellcheck="false"
           ></textarea>
         </div>
+
+        <!-- Saved Domain Presets & Quick Actions -->
         <div class="quick-preset-row">
-          <span class="helper-text">💡 এই URL টি স্বয়ংক্রিয়ভাবে সেভ থাকবে</span>
-          <button id="pasteBaseBtn" class="btn-chip">📋 Paste URL</button>
+          <div class="helper-info-group">
+            <span class="helper-text">💡 URL টি মেমোরিতে সেভ থাকে। Clear দিলে স্থায়ীভাবে মুছে যাবে।</span>
+          </div>
+          <div class="preset-action-btns">
+            <button id="saveBaseManualBtn" class="btn-chip" title="বর্তমান URL সেভ করে রাখুন">💾 Save Domain</button>
+            <button id="pasteBaseBtn" class="btn-chip primary-chip">📋 Paste URL</button>
+          </div>
+        </div>
+
+        <!-- Saved Domain History Tags (Optional Quick Select / Delete) -->
+        <div id="savedDomainsContainer" class="saved-domains-list" style="display: none;">
+          <span class="saved-list-label">সংরক্ষিত ডোমেন তালিকা:</span>
+          <div id="savedDomainsChips" class="domain-chips-wrapper">
+            <!-- Populated dynamically by JS -->
+          </div>
         </div>
       </section>
 
@@ -80,7 +109,7 @@
             <span class="step-number">2</span>
             <div>
               <h2 class="step-title">Usernames / IDs</h2>
-              <p class="step-desc">বক্সে লিখুন অথবা .html / .txt ফাইল আপলোড করুন</p>
+              <p class="step-desc">বক্সে লিখুন অথবা .html / .pdf / .txt ফাইল আপলোড করুন</p>
             </div>
           </div>
           <!-- Toggle: Box vs Upload -->
@@ -97,7 +126,10 @@
               id="usernamesInput" 
               class="text-field code-font" 
               rows="4" 
-              placeholder="প্রতি লাইনে ১টি করে Username বা ID দিন..."
+              placeholder="প্রতি লাইনে ১টি করে Username বা ID দিন...
+username1
+username2
+username3"
               spellcheck="false"
             ></textarea>
           </div>
@@ -105,12 +137,12 @@
             <span id="inputCountBadge" class="count-tag">0 Usernames</span>
             <div class="footer-actions">
               <button id="pasteUsernamesBtn" class="btn-chip">📋 Paste Clipboard</button>
-              <button id="clearUsernamesBtn" class="btn-chip">Clear</button>
+              <button id="clearUsernamesBtn" class="btn-chip danger-chip">Clear</button>
             </div>
           </div>
         </div>
 
-        <!-- Mode B: File Upload (Supports .html, .txt, folder) -->
+        <!-- Mode B: File Upload (Supports .html, .pdf, .txt, folder) -->
         <div id="fileModeContainer" class="mode-view">
           <div id="dropZone" class="upload-dropzone">
             <!-- Hidden Multi-file input -->
@@ -120,13 +152,13 @@
 
             <div class="dropzone-content">
               <div class="upload-icon">
-                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2">
+                <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="17 8 12 3 7 8"></polyline>
                   <line x1="12" y1="3" x2="12" y2="15"></line>
                 </svg>
               </div>
-              <p class="upload-title">ফাইল নির্বাচন করতে ক্লিক করুন বা টেনে আনুন</p>
+              <p class="upload-title">ফাইল নির্বাচন করতে ক্লিক করুন বা ড্রপ করুন</p>
               <span class="upload-subtitle">সমর্থিত: <b>.html</b>, <b>.pdf</b> (ফাইলের নাম থেকে ইউজারনেম নিবে) এবং <b>.txt</b> ফাইল</span>
               
               <!-- Quick upload buttons -->
@@ -146,14 +178,16 @@
                 <p id="loadedFileDetails" class="file-sub-text">0 items found</p>
               </div>
             </div>
-            <button id="removeFileBtn" class="btn-text-danger">বাতিল করুন</button>
+            <button id="removeFileBtn" class="btn-text-danger" title="আপলোড করা ফাইল বাতিল করুন">বাতিল করুন</button>
           </div>
         </div>
       </section>
 
       <!-- Preview Example Box -->
       <div class="example-preview-box">
-        <span class="preview-badge">কিভাবে তৈরি হবে (Live Preview):</span>
+        <div class="preview-header">
+          <span class="preview-badge">⚡ Live Preview (লাইভ ফলাফল নমুনা):</span>
+        </div>
         <code class="preview-code" id="livePreviewText">Main URL + Username = আপনার ফাইনাল লিংক</code>
       </div>
 
@@ -165,7 +199,7 @@
           </svg>
           লিংক তৈরি করুন (Generate Links)
         </button>
-        <button id="resetAllBtn" class="btn-secondary" title="সব খালি করুন">Reset</button>
+        <button id="resetAllBtn" class="btn-secondary" title="সব খালি করুন">Reset All</button>
       </div>
 
       <!-- STEP 3: Results -->
@@ -215,7 +249,7 @@
 
         <!-- Raw Text View -->
         <div id="resultTextView" class="links-text-container" style="display: none;">
-          <textarea id="resultRawText" class="text-field code-font results-box" rows="7" readonly></textarea>
+          <textarea id="resultRawText" class="text-field code-font results-box" rows="8" readonly></textarea>
         </div>
       </section>
 

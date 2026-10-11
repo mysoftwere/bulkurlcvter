@@ -1,25 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "LinkCraft - URL & ID Combiner",
+  "name": "Link Combiner Pro",
   "version": "1.0.0",
-  "description": "Combine base URLs or domains with usernames and IDs from text box or uploaded files. Copy, export and open links effortlessly.",
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
+  "description": "Main URL বা Domain এর সাথে Usernames/IDs জোড়া লাগানোর দ্রুত ও কার্যকর এক্সটেনশন।",
   "action": {
-    "default_title": "LinkCraft - URL & ID Combiner",
     "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_title": "Link Combiner Pro"
   },
   "permissions": [
     "storage",
-    "clipboardWrite",
-    "tabs"
+    "clipboardRead",
+    "clipboardWrite"
   ]
 }
