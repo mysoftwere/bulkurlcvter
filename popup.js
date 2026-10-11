@@ -18,8 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const saveBaseManualBtn = document.getElementById('saveBaseManualBtn');
   const domainSavedBadge = document.getElementById('domainSavedBadge');
   const saveStatusText = document.getElementById('saveStatusText');
-  const savedDomainsContainer = document.getElementById('savedDomainsContainer');
-  const savedDomainsChips = document.getElementById('savedDomainsChips');
+  const savedDomainsSection = document.getElementById('savedDomainsSection');
+  const savedDomainsList = document.getElementById('savedDomainsList');
+  const savedDomainsCount = document.getElementById('savedDomainsCount');
+  const clearAllSavedDomainsBtn = document.getElementById('clearAllSavedDomainsBtn');
 
   // Step 2: Usernames Mode & Inputs
   const tabTextBtn = document.getElementById('tabTextBtn');
@@ -152,16 +154,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- STEP 1: DOMAIN / BASE URL PERSISTENCE & CLEAR LOGIC ---
+  // --- STEP 1: DOMAIN / BASE URL PERSISTENCE & SERIAL LIST LOGIC ---
   async function initBaseUrl() {
     const savedUrl = await Storage.get('saved_base_url', '');
+    let list = await Storage.get('saved_domains_history', []);
+    if (!Array.isArray(list)) list = [];
+
     if (savedUrl) {
       baseUrlInput.value = savedUrl;
+      updateDomainBadge(true);
+    } else if (list.length > 0) {
+      // Auto-load first saved domain if no active URL is set
+      baseUrlInput.value = list[0];
+      await Storage.set('saved_base_url', list[0]);
       updateDomainBadge(true);
     } else {
       updateDomainBadge(false);
     }
-    renderSavedDomainChips();
+
+    renderSavedDomainsList();
     updateLivePreview();
   }
 
@@ -187,34 +198,36 @@ document.addEventListener('DOMContentLoaded', () => {
       if (val) {
         await Storage.set('saved_base_url', val);
         updateDomainBadge(true);
-        addDomainToHistory(val);
       } else {
         await Storage.remove('saved_base_url');
         updateDomainBadge(false);
       }
-    }, 400);
+      renderSavedDomainsList();
+    }, 300);
   });
 
-  // Clear / Remove Domain button
+  // Clear / Remove Domain from input box
   clearBaseBtn.addEventListener('click', async () => {
     baseUrlInput.value = '';
     await Storage.remove('saved_base_url');
     updateDomainBadge(false);
     updateLivePreview();
-    showToast('🗑️ ডোমেন মুছে ফেলা হয়েছে এবং মেমোরি থেকে সরানো হয়েছে!');
+    renderSavedDomainsList();
+    showToast('🗑️ মেইন URL বক্স ক্লিয়ার করা হয়েছে!');
   });
 
   // Paste Base URL
   pasteBaseBtn.addEventListener('click', async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text) {
-        baseUrlInput.value = text.trim();
-        await Storage.set('saved_base_url', text.trim());
+      if (text && text.trim()) {
+        const val = text.trim();
+        baseUrlInput.value = val;
+        await Storage.set('saved_base_url', val);
         updateDomainBadge(true);
-        addDomainToHistory(text.trim());
         updateLivePreview();
-        showToast('📋 URL পেস্ট এবং সেভ হয়েছে!');
+        renderSavedDomainsList();
+        showToast('📋 URL পেস্ট হয়েছে! লিস্টে রাখতে "লিস্টে সেভ করুন" চাপুন');
       } else {
         showToast('ক্লিপবোর্ডে কোন লেখা নেই');
       }
@@ -224,81 +237,198 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Save Domain explicitly
+  // Save Domain into Serial List explicitly
   if (saveBaseManualBtn) {
     saveBaseManualBtn.addEventListener('click', async () => {
       const val = baseUrlInput.value.trim();
       if (!val) {
-        showToast('⚠️ অনুগ্রহ করে প্রথমে একটি URL লিখুন');
+        showToast('⚠️ অনুগ্রহ করে প্রথমে একটি URL লিখুন বা পেস্ট করুন');
+        baseUrlInput.focus();
         return;
       }
+
+      let list = await Storage.get('saved_domains_history', []);
+      if (!Array.isArray(list)) list = [];
+
+      const existingIndex = list.indexOf(val);
+      if (existingIndex !== -1) {
+        // Already in list
+        await Storage.set('saved_base_url', val);
+        updateDomainBadge(true);
+        updateLivePreview();
+        renderSavedDomainsList();
+        showToast(`ℹ️ এই URL টি ইতিমধ্যে সিরিয়াল #${existingIndex + 1}-এ সংরক্ষিত আছে এবং সিলেক্ট করা হয়েছে!`);
+        return;
+      }
+
+      // Append new domain to the serial list
+      list.push(val);
+      await Storage.set('saved_domains_history', list);
       await Storage.set('saved_base_url', val);
-      await addDomainToHistory(val);
       updateDomainBadge(true);
-      showToast('💾 ডোমেন সফলভাবে সংরক্ষিত হয়েছে!');
+      updateLivePreview();
+      renderSavedDomainsList();
+      showToast(`💾 ডোমেন #${list.length} হিসেবে সফলভাবে সংরক্ষিত হয়েছে!`);
     });
   }
 
-  // Saved Domains History Chips
-  async function addDomainToHistory(url) {
-    if (!url) return;
-    let list = await Storage.get('saved_domains_history', []);
-    if (!Array.isArray(list)) list = [];
-    list = list.filter(item => item !== url);
-    list.unshift(url);
-    if (list.length > 5) list = list.slice(0, 5); // Keep top 5
-    await Storage.set('saved_domains_history', list);
-    renderSavedDomainChips();
+  // Clear All Saved Domains
+  if (clearAllSavedDomainsBtn) {
+    clearAllSavedDomainsBtn.addEventListener('click', async () => {
+      const confirmed = confirm('আপনি কি সংরক্ষিত ডোমেন তালিকার সব URL মুছে ফেলতে চান?');
+      if (!confirmed) return;
+
+      await Storage.set('saved_domains_history', []);
+      baseUrlInput.value = '';
+      await Storage.remove('saved_base_url');
+      updateDomainBadge(false);
+      updateLivePreview();
+      renderSavedDomainsList();
+      showToast('🗑️ সব সংরক্ষিত ডোমেন মুছে ফেলা হয়েছে!');
+    });
   }
 
-  async function renderSavedDomainChips() {
-    const list = await Storage.get('saved_domains_history', []);
-    if (!Array.isArray(list) || list.length === 0) {
-      savedDomainsContainer.style.display = 'none';
-      savedDomainsChips.innerHTML = '';
+  // Render Saved Domains Serial List
+  async function renderSavedDomainsList() {
+    if (!savedDomainsList) return;
+
+    let list = await Storage.get('saved_domains_history', []);
+    if (!Array.isArray(list)) list = [];
+
+    const currentActiveUrl = baseUrlInput.value.trim();
+
+    // Update Header Count & Clear All Button
+    if (savedDomainsCount) {
+      savedDomainsCount.textContent = `${list.length}টি`;
+    }
+    if (clearAllSavedDomainsBtn) {
+      clearAllSavedDomainsBtn.style.display = list.length > 0 ? 'inline-block' : 'none';
+    }
+
+    savedDomainsList.innerHTML = '';
+
+    if (list.length === 0) {
+      const emptyPlaceholder = document.createElement('div');
+      emptyPlaceholder.className = 'empty-saved-placeholder';
+      emptyPlaceholder.innerHTML = `
+        <span class="empty-icon">📁</span>
+        <p>এখনও কোন URL সেভ করা নেই।</p>
+        <p style="font-size: 11px; opacity: 0.85;">বক্সে ডোমেন লিখে <b>"💾 লিস্টে সেভ করুন"</b> বাটনে ক্লিক করলে তা সিরিয়াল অনুযায়ী এখানে থাকবে।</p>
+      `;
+      savedDomainsList.appendChild(emptyPlaceholder);
       return;
     }
-    savedDomainsContainer.style.display = 'block';
-    savedDomainsChips.innerHTML = '';
 
-    list.forEach(item => {
-      const chip = document.createElement('div');
-      chip.className = 'domain-chip-item';
-      
-      const label = document.createElement('span');
-      label.textContent = item.length > 35 ? item.substring(0, 32) + '...' : item;
-      label.title = item;
-      label.onclick = () => {
-        baseUrlInput.value = item;
-        Storage.set('saved_base_url', item);
+    list.forEach((itemUrl, index) => {
+      const serialNumber = index + 1;
+      const isActive = (itemUrl === currentActiveUrl);
+
+      const row = document.createElement('div');
+      row.className = `saved-domain-row ${isActive ? 'is-active' : ''}`;
+      row.setAttribute('data-url', itemUrl);
+      row.title = `সিরিয়াল #${serialNumber}: ক্লিক করে মেইন ডোমেন হিসেবে ব্যবহার করুন`;
+
+      // Serial Number Badge (#1, #2, #3...)
+      const serialBadge = document.createElement('div');
+      serialBadge.className = 'serial-badge';
+      serialBadge.textContent = `#${serialNumber}`;
+
+      // Domain Text and Active Indicator
+      const mainContent = document.createElement('div');
+      mainContent.className = 'domain-main-content';
+
+      const urlText = document.createElement('div');
+      urlText.className = 'domain-text';
+      urlText.textContent = itemUrl;
+      urlText.title = itemUrl;
+
+      const subInfo = document.createElement('div');
+      subInfo.className = 'domain-row-sub';
+      if (isActive) {
+        subInfo.innerHTML = '<span class="active-badge">✓ বর্তমান সক্রিয় ডোমেন</span>';
+      } else {
+        subInfo.innerHTML = '<span class="click-hint">ক্লিক করে সক্রিয় করুন</span>';
+      }
+
+      mainContent.appendChild(urlText);
+      mainContent.appendChild(subInfo);
+
+      // Actions: Use button & Delete button
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'domain-row-actions';
+
+      // 1. Use / Apply Button
+      const useBtn = document.createElement('button');
+      useBtn.className = 'btn-use-domain';
+      useBtn.type = 'button';
+      useBtn.innerHTML = isActive 
+        ? '<span>✓ সক্রিয়</span>' 
+        : '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> ব্যবহার করুন';
+      useBtn.title = `ডোমেন #${serialNumber} মেইন URL হিসেবে ব্যবহার করুন`;
+
+      const selectDomainAction = async () => {
+        baseUrlInput.value = itemUrl;
+        await Storage.set('saved_base_url', itemUrl);
         updateDomainBadge(true);
         updateLivePreview();
-        showToast('🔄 ডোমেন সিলেক্ট করা হয়েছে!');
+        renderSavedDomainsList();
+        showToast(`⚡ সিরিয়াল #${serialNumber} ডোমেন হিসেবে সেট করা হয়েছে!`);
       };
 
+      // Click anywhere on row selects it
+      row.onclick = selectDomainAction;
+      useBtn.onclick = (e) => {
+        e.stopPropagation();
+        selectDomainAction();
+      };
+
+      // 2. Remove / Delete Button
       const removeBtn = document.createElement('button');
-      removeBtn.className = 'remove-tag-btn';
-      removeBtn.innerHTML = '&times;';
-      removeBtn.title = 'তালিকা থেকে রিমুভ করুন';
+      removeBtn.className = 'btn-remove-domain';
+      removeBtn.type = 'button';
+      removeBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          <line x1="10" y1="11" x2="10" y2="17"></line>
+          <line x1="14" y1="11" x2="14" y2="17"></line>
+        </svg>
+      `;
+      removeBtn.title = `ডোমেন #${serialNumber} তালিকা থেকে মুছে ফেলুন`;
       removeBtn.onclick = async (e) => {
         e.stopPropagation();
         let currentList = await Storage.get('saved_domains_history', []);
-        currentList = currentList.filter(x => x !== item);
-        await Storage.set('saved_domains_history', currentList);
-        // If current active is the one deleted, clear it if matches
-        if (baseUrlInput.value.trim() === item) {
-          baseUrlInput.value = '';
-          await Storage.remove('saved_base_url');
-          updateDomainBadge(false);
+        if (Array.isArray(currentList)) {
+          currentList = currentList.filter(x => x !== itemUrl);
+          await Storage.set('saved_domains_history', currentList);
+        }
+
+        // If active URL was the deleted one
+        if (baseUrlInput.value.trim() === itemUrl) {
+          if (currentList && currentList.length > 0) {
+            baseUrlInput.value = currentList[0];
+            await Storage.set('saved_base_url', currentList[0]);
+            updateDomainBadge(true);
+          } else {
+            baseUrlInput.value = '';
+            await Storage.remove('saved_base_url');
+            updateDomainBadge(false);
+          }
           updateLivePreview();
         }
-        renderSavedDomainChips();
-        showToast('রিমুভ করা হয়েছে');
+
+        renderSavedDomainsList();
+        showToast(`🗑️ ডোমেন #${serialNumber} তালিকা থেকে মুছে ফেলা হয়েছে!`);
       };
 
-      chip.appendChild(label);
-      chip.appendChild(removeBtn);
-      savedDomainsChips.appendChild(chip);
+      actionsDiv.appendChild(useBtn);
+      actionsDiv.appendChild(removeBtn);
+
+      row.appendChild(serialBadge);
+      row.appendChild(mainContent);
+      row.appendChild(actionsDiv);
+
+      savedDomainsList.appendChild(row);
     });
   }
 

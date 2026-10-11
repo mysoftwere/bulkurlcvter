@@ -82,21 +82,38 @@
           ></textarea>
         </div>
 
-        <!-- Saved Domain Presets & Quick Actions -->
+        <!-- Quick Actions & Save Button -->
         <div class="quick-preset-row">
           <div class="helper-info-group">
-            <span class="helper-text">💡 URL টি মেমোরিতে সেভ থাকে। Clear দিলে স্থায়ীভাবে মুছে যাবে।</span>
+            <span class="helper-text">💡 URL টি সেভ করে রাখলে নিচের সিরিয়াল লিস্টে যুক্ত হবে এবং ক্লিক করে যেকোনো সময় ডোমেন হিসেবে ব্যবহার করতে পারবেন।</span>
           </div>
           <div class="preset-action-btns">
-            <button id="saveBaseManualBtn" class="btn-chip" title="বর্তমান URL সেভ করে রাখুন">💾 Save Domain</button>
-            <button id="pasteBaseBtn" class="btn-chip primary-chip">📋 Paste URL</button>
+            <button id="saveBaseManualBtn" class="btn-chip primary-chip" title="এই URL টি সিরিয়াল লিস্টে সেভ করুন">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              💾 লিস্টে সেভ করুন
+            </button>
+            <button id="pasteBaseBtn" class="btn-chip">📋 Paste URL</button>
           </div>
         </div>
 
-        <!-- Saved Domain History Tags (Optional Quick Select / Delete) -->
-        <div id="savedDomainsContainer" class="saved-domains-list" style="display: none;">
-          <span class="saved-list-label">সংরক্ষিত ডোমেন তালিকা:</span>
-          <div id="savedDomainsChips" class="domain-chips-wrapper">
+        <!-- Saved Domain Serial List Section -->
+        <div id="savedDomainsSection" class="saved-domains-section">
+          <div class="saved-domains-header">
+            <div class="saved-header-left">
+              <span class="saved-header-icon">📑</span>
+              <span class="saved-header-title">সংরক্ষিত URL তালিকা (Serial List)</span>
+              <span id="savedDomainsCount" class="saved-count-pill">0টি</span>
+            </div>
+            <button id="clearAllSavedDomainsBtn" class="btn-clear-all-domains" title="তালিকার সব URL মুছে ফেলুন" style="display: none;">
+              সব মুছুন
+            </button>
+          </div>
+
+          <div id="savedDomainsList" class="saved-domains-serial-list">
             <!-- Populated dynamically by JS -->
           </div>
         </div>

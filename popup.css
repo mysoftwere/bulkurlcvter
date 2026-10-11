@@ -411,58 +411,255 @@ body {
   border-color: var(--accent-danger);
 }
 
-/* Saved Domains Chips List */
-.saved-domains-list {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--border-color);
-}
-
-.saved-list-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  display: block;
-  margin-bottom: 6px;
-}
-
-.domain-chips-wrapper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.domain-chip-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+/* Saved Domains Serial List Section */
+.saved-domains-section {
+  margin-top: 14px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 3px 8px;
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition: all 0.25s ease;
+}
+
+.saved-domains-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.saved-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.saved-header-icon {
+  font-size: 14px;
+}
+
+.saved-count-pill {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--accent-primary);
   font-size: 11px;
-  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.btn-clear-all-domains {
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: var(--accent-danger);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  transition: background 0.15s ease;
+}
+
+.btn-clear-all-domains:hover {
+  background: var(--accent-danger-bg);
+  text-decoration: underline;
+}
+
+.saved-domains-serial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+/* Custom scrollbar for serial list */
+.saved-domains-serial-list::-webkit-scrollbar {
+  width: 5px;
+}
+.saved-domains-serial-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+.saved-domains-serial-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Row Item */
+.saved-domain-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  user-select: none;
+}
+
+.saved-domain-row:hover {
+  border-color: var(--accent-primary);
+  background: var(--code-bg);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.saved-domain-row.is-active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.09);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.4);
+}
+
+.serial-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  transition: all 0.2s ease;
+}
+
+.saved-domain-row.is-active .serial-badge {
+  background: #10b981;
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+}
+
+.domain-main-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.domain-text {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: ltr;
+  text-align: left;
+}
+
+.domain-row-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.active-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #10b981;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.click-hint {
+  font-size: 10.5px;
+  color: var(--text-muted);
+}
+
+.domain-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-use-domain {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-use-domain:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #ffffff;
+}
+
+.saved-domain-row.is-active .btn-use-domain {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
+  pointer-events: none;
+}
+
+.btn-remove-domain {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.domain-chip-item:hover {
-  border-color: var(--accent-primary);
-  color: var(--text-primary);
-}
-
-.domain-chip-item .remove-tag-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 0 2px;
-  line-height: 1;
-}
-
-.domain-chip-item .remove-tag-btn:hover {
+.btn-remove-domain:hover {
+  background: var(--accent-danger-bg);
+  border-color: rgba(239, 68, 68, 0.3);
   color: var(--accent-danger);
+}
+
+.empty-saved-placeholder {
+  text-align: center;
+  padding: 16px 12px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.empty-saved-placeholder .empty-icon {
+  font-size: 20px;
+  opacity: 0.8;
+}
+
+.empty-saved-placeholder p {
+  margin: 0;
+  line-height: 1.5;
 }
 
 /* STEP 2: MODE TOGGLE & BOX/FILE */
